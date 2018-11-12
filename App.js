@@ -3,10 +3,14 @@ import { SafeAreaView, Alert, Linking } from "react-native";
 import { WebView } from "react-native-webview";
 
 export default class App extends Component {
-  onMessage(e) {
+  constructor(props) {
+    super(props);
+    this.handleMessage = this.handleMessage.bind(this);
+  }
+
+  handleMessage(e) {
     // retrieve event data
     var data = e.nativeEvent.data;
-    console.log({ data });
     // maybe parse stringified JSON
     try {
       data = JSON.parse(data);
@@ -19,7 +23,10 @@ export default class App extends Component {
         "Do you want to open this URL in your browser?",
         [
           { text: "Cancel", style: "cancel" },
-          { text: "OK", onPress: () => Linking.openURL(data.external_url_open) }
+          {
+            text: "OK",
+            onPress: () => Linking.openURL(data.external_url_open)
+          }
         ],
         { cancelable: false }
       );
@@ -39,15 +46,52 @@ export default class App extends Component {
   }
 
   render() {
-    let jsCode = `function injectedJavaScript(){window.alert('test'); var e=function(e,n,t){if(n=n.replace(/^on/g,""),"addEventListener"in window)e.addEventListener(n,t,!1);else if("attachEvent"in window)e.attachEvent("on"+n,t);else{var i=e["on"+n];e["on"+n]=i?function(e){i(e),t(e)}:t}return e},n=document.querySelectorAll("a[href]");if(n)for(var t in n)n.hasOwnProperty(t)&&e(n[t],"onclick",function(e){new RegExp("^https?://"+location.host,"gi").test(this.href)||(e.preventDefault(),window.postMessage(JSON.stringify({external_url_open:this.href})))})}injectedJavaScript();`;
+    let jsCode = `
+    function injectedJavaScript() {
+      var attachEvent = function(elem, event, callback) {
+        event = event.replace(/^on/g, "");
+        if ("addEventListener" in window) {
+          elem.addEventListener(event, callback, false);
+        } else if ("attachEvent" in window) {
+          elem.attachEvent("on" + event, callback);
+        } else {
+          var registered = elem["on" + event];
+          elem["on" + event] = registered
+            ? function(e) {
+                registered(e);
+                callback(e);
+              }
+            : callback;
+        }
+
+        return elem;
+      };
+      var all_links = document.querySelectorAll("a[href]");
+      if (all_links) {
+        for (var i in all_links) {
+          if (all_links.hasOwnProperty(i)) {
+            attachEvent(all_links[i], "onclick", function(e) {
+              if (!new RegExp("^https?://" + location.host, "gi").test(this.href)) {
+                // handle external URL
+                e.preventDefault();
+                window.postMessage(
+                  JSON.stringify({
+                    external_url_open: this.href
+                  })
+                );
+              }
+            });
+          }
+        }
+      }
+    }
+    injectedJavaScript();`;
+
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }}>
         <WebView
-          // onError={console.error.bind(console, "error")}
-          javaScriptEnabled={true}
-          // onMessage={this.onMessage}
+          onMessage={this.handleMessage}
           injectedJavaScript={jsCode}
-          // onShouldStartLoadWithRequest={this.openExternalLink}
           source={{ uri: "https://patientaider.org/" }}
         />
       </SafeAreaView>
