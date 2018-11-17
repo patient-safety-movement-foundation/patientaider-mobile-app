@@ -90,6 +90,7 @@ export default class App extends Component {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }}>
         <WebView
+          javaScriptEnabled
           onMessage={this.handleMessage}
           injectedJavaScript={jsCode}
           source={{ uri: "https://patientaider.org/" }}
